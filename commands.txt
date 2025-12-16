@@ -1,0 +1,15 @@
+
+
+generate contracts-
+
+ - windows - Invoke-WebRequest http://localhost:8001/openapi.json -OutFile contracts/auth.openapi.json
+ - linux - curl http://localhost:8001/openapi.json > contracts/auth.openapi.json
+
+    (contracts folder will have the json file auth.openapi.json)
+
+
+covert the contract to models for the services
+ - npx @apidevtools/swagger-cli validate contracts/auth.openapi.json (for validating the json)
+ - npx @openapitools/openapi-generator-cli generate -i contracts/auth.openapi.json -g python -o api-gateway/generated/auth_client --global-property models 
+    (this will generate the models and schemas)
+

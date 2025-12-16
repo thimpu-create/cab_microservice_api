@@ -1,0 +1,92 @@
+# ===============================
+# Python
+# ===============================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# ===============================
+# FastAPI / Uvicorn
+# ===============================
+*.log
+logs/
+gunicorn.conf.py
+
+# ===============================
+# Environment variables
+# ===============================
+.env
+.env.*
+!.env.example
+
+# ===============================
+# Docker
+# ===============================
+# Docker local override files
+docker-compose.override.yml
+
+# Docker volumes (if mounted locally)
+docker-data/
+volumes/
+
+# ===============================
+# Databases
+# ===============================
+*.sqlite3
+*.db
+data/
+db_data/
+
+# ===============================
+# Migrations
+# ===============================
+# Uncomment if you don't want migrations in git
+# alembic/versions/
+
+# ===============================
+# Testing / Coverage
+# ===============================
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# ===============================
+# Build / Distribution
+# ===============================
+build/
+dist/
+*.whl
+
+# ===============================
+# IDEs / Editors
+# ===============================
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+
+# ===============================
+# OS
+# ===============================
+.DS_Store
+Thumbs.db
+
+# ===============================
+# Docs / API
+# ===============================
+.openapi.json
+swagger.json
+redoc.html

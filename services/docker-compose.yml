@@ -1,0 +1,261 @@
+version: "3.9"
+
+services:
+  # -------------------------------
+  # Databases & Infrastructure
+  # -------------------------------
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    env_file:
+      - .env
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 5
+
+  # -------------------------------
+  # Microservices
+  # -------------------------------
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8000:8000"
+    depends_on:
+      - auth-service
+      - company-service
+      - driver-service
+      - passenger-service
+      - ride-service
+      - payment-service
+      - pricing-service
+      - notification-service
+      - chat-service
+      - analytics-service
+      - realtime-service
+      - geo-service
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+  company-service:
+    build: ./company-service
+    container_name: company-service
+    ports:
+      - "8002:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+  driver-service:
+    build: ./driver-service
+    container_name: driver-service
+    ports:
+      - "8003:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+  passenger-service:
+    build: ./passenger-service
+    container_name: passenger-service
+    ports:
+      - "8004:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+  ride-service:
+    build: ./ride-service
+    container_name: ride-service
+    ports:
+      - "8005:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+  realtime-service:
+    build: ./realtime-service
+    container_name: realtime-service
+    ports:
+      - "8007:8000"
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+  geo-service:
+    build: ./geo-service
+    container_name: geo-service
+    ports:
+      - "8008:8000"
+    env_file:
+      - .env
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+  pricing-service:
+    build: ./pricing-service
+    container_name: pricing-service
+    ports:
+      - "8009:8000"
+    env_file:
+      - .env
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+  payment-service:
+    build: ./payment-service
+    container_name: payment-service
+    ports:
+      - "8010:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+  notification-service:
+    build: ./notification-service
+    container_name: notification-service
+    ports:
+      - "8011:8000"
+    env_file:
+      - .env
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+  chat-service:
+    build: ./chat-service
+    container_name: chat-service
+    ports:
+      - "8012:8000"
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+  analytics-service:
+    build: ./analytics-service
+    container_name: analytics-service
+    ports:
+      - "8013:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+# -------------------------------
+# Volumes
+# -------------------------------
+volumes:
+  postgres_data:
+
+# -------------------------------
+# Network
+# -------------------------------
+networks:
+  cab-network:
+    driver: bridge

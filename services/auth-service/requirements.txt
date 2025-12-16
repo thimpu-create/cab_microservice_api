@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+SQLAlchemy
+alembic
+httpx
+python-multipart
+passlib==1.7.4
+redis
+PyJWT
+email-validator
+psycopg2
+bcrypt==5.0.0
