@@ -14,10 +14,10 @@
 
 import unittest
 
-from openapi_client.models.user_create import UserCreate
+from openapi_client.models.passenger_register import PassengerRegister
 
-class TestUserCreate(unittest.TestCase):
-    """UserCreate unit test stubs"""
+class TestPassengerRegister(unittest.TestCase):
+    """PassengerRegister unit test stubs"""
 
     def setUp(self):
         pass
@@ -25,38 +25,35 @@ class TestUserCreate(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def make_instance(self, include_optional) -> UserCreate:
-        """Test UserCreate
+    def make_instance(self, include_optional) -> PassengerRegister:
+        """Test PassengerRegister
             include_optional is a boolean, when False only required
             params are included, when True both required and
             optional params are included """
-        # uncomment below to create an instance of `UserCreate`
+        # uncomment below to create an instance of `PassengerRegister`
         """
-        model = UserCreate()
+        model = PassengerRegister()
         if include_optional:
-            return UserCreate(
+            return PassengerRegister(
                 fname = '',
                 mname = '',
                 lname = '',
                 email = '',
                 phone = '',
-                status = '',
-                password = '',
-                role_id = 56
+                password = ''
             )
         else:
-            return UserCreate(
+            return PassengerRegister(
                 fname = '',
                 lname = '',
                 email = '',
                 phone = '',
                 password = '',
-                role_id = 56,
         )
         """
 
-    def testUserCreate(self):
-        """Test UserCreate"""
+    def testPassengerRegister(self):
+        """Test PassengerRegister"""
         # inst_req_only = self.make_instance(include_optional=False)
         # inst_req_and_optional = self.make_instance(include_optional=True)
 

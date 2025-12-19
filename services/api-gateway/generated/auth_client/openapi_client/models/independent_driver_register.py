@@ -17,24 +17,23 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from typing import Optional, Set
 from typing_extensions import Self
 
-class UserCreate(BaseModel):
+class IndependentDriverRegister(BaseModel):
     """
-    UserCreate
+    IndependentDriverRegister
     """ # noqa: E501
     fname: StrictStr
     mname: Optional[StrictStr] = None
     lname: StrictStr
     email: StrictStr
     phone: StrictStr
-    status: Optional[StrictStr] = None
     password: StrictStr
-    role_id: StrictInt
-    __properties: ClassVar[List[str]] = ["fname", "mname", "lname", "email", "phone", "status", "password", "role_id"]
+    license_number: Optional[StrictStr] = None
+    __properties: ClassVar[List[str]] = ["fname", "mname", "lname", "email", "phone", "password", "license_number"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -54,7 +53,7 @@ class UserCreate(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of UserCreate from a JSON string"""
+        """Create an instance of IndependentDriverRegister from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -80,16 +79,16 @@ class UserCreate(BaseModel):
         if self.mname is None and "mname" in self.model_fields_set:
             _dict['mname'] = None
 
-        # set to None if status (nullable) is None
+        # set to None if license_number (nullable) is None
         # and model_fields_set contains the field
-        if self.status is None and "status" in self.model_fields_set:
-            _dict['status'] = None
+        if self.license_number is None and "license_number" in self.model_fields_set:
+            _dict['license_number'] = None
 
         return _dict
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of UserCreate from a dict"""
+        """Create an instance of IndependentDriverRegister from a dict"""
         if obj is None:
             return None
 
@@ -102,9 +101,8 @@ class UserCreate(BaseModel):
             "lname": obj.get("lname"),
             "email": obj.get("email"),
             "phone": obj.get("phone"),
-            "status": obj.get("status"),
             "password": obj.get("password"),
-            "role_id": obj.get("role_id")
+            "license_number": obj.get("license_number")
         })
         return _obj
 

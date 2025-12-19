@@ -28,17 +28,17 @@ class UserRead(BaseModel):
     """
     UserRead
     """ # noqa: E501
+    id: StrictInt
     fname: StrictStr
-    mname: Optional[StrictStr] = None
+    mname: Optional[StrictStr]
     lname: StrictStr
     email: StrictStr
     phone: StrictStr
-    status: Optional[StrictStr] = None
-    id: StrictInt
+    status: StrictStr
     role: RoleRead
     created_at: datetime
     updated_at: datetime
-    __properties: ClassVar[List[str]] = ["fname", "mname", "lname", "email", "phone", "status", "id", "role", "created_at", "updated_at"]
+    __properties: ClassVar[List[str]] = ["id", "fname", "mname", "lname", "email", "phone", "status", "role", "created_at", "updated_at"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -87,11 +87,6 @@ class UserRead(BaseModel):
         if self.mname is None and "mname" in self.model_fields_set:
             _dict['mname'] = None
 
-        # set to None if status (nullable) is None
-        # and model_fields_set contains the field
-        if self.status is None and "status" in self.model_fields_set:
-            _dict['status'] = None
-
         return _dict
 
     @classmethod
@@ -104,13 +99,13 @@ class UserRead(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
+            "id": obj.get("id"),
             "fname": obj.get("fname"),
             "mname": obj.get("mname"),
             "lname": obj.get("lname"),
             "email": obj.get("email"),
             "phone": obj.get("phone"),
             "status": obj.get("status"),
-            "id": obj.get("id"),
             "role": RoleRead.from_dict(obj["role"]) if obj.get("role") is not None else None,
             "created_at": obj.get("created_at"),
             "updated_at": obj.get("updated_at")

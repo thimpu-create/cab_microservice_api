@@ -35,13 +35,13 @@ class TestUserRead(unittest.TestCase):
         model = UserRead()
         if include_optional:
             return UserRead(
+                id = 56,
                 fname = '',
                 mname = '',
                 lname = '',
                 email = '',
                 phone = '',
                 status = '',
-                id = 56,
                 role = openapi_client.models.role_read.RoleRead(
                     name = '', 
                     id = 56, ),
@@ -50,11 +50,13 @@ class TestUserRead(unittest.TestCase):
             )
         else:
             return UserRead(
+                id = 56,
                 fname = '',
+                mname = '',
                 lname = '',
                 email = '',
                 phone = '',
-                id = 56,
+                status = '',
                 role = openapi_client.models.role_read.RoleRead(
                     name = '', 
                     id = 56, ),

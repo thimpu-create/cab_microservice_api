@@ -1,9 +1,8 @@
 from fastapi import FastAPI
 from .api.v1.auth import router as auth_router
-
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Auth Service", version="1.0.0")
-
 @app.get("/health")
 def health():
     return {"status": "auth-service running"}
