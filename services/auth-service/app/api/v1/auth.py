@@ -159,7 +159,7 @@ def login(payload: LoginSchema, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     token_data = {
-        "user_id": user.id,
+        "user_id": str(user.uuid),
         "role": user.role.name,
     }
 

@@ -1,6 +1,8 @@
 from sqlalchemy import Column, String, BigInteger, ForeignKey, TIMESTAMP, func, Enum
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import UUID
 from .base import Base
+import uuid
 
 class Role(Base):
     __tablename__ = "roles"
@@ -15,6 +17,14 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True, index=True)
+    uuid = Column(
+        UUID(as_uuid=True),
+        default=uuid.uuid4,
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
     fname = Column(String(100), nullable=False)
     mname = Column(String(100), nullable=True)
     lname = Column(String(100), nullable=False)
