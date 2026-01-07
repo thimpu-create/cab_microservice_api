@@ -2,6 +2,10 @@ from fastapi import FastAPI
 
 app = FastAPI(title="Chat Service", version="1.0.0")
 
+# WebSocket-only routes
+from .core.websocket import router as websocket_router
+app.include_router(websocket_router)
+
 @app.get("/health")
 def health():
     return {"status": "chat-service running"}
