@@ -14,6 +14,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     libpq-dev gcc \
     build-essential \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # -------------------------------
@@ -39,4 +40,6 @@ EXPOSE 8000
 # -------------------------------
 # Run FastAPI server
 # -------------------------------
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+RUN chmod +x entrypoint.sh
+
+CMD ["./entrypoint.sh"]
