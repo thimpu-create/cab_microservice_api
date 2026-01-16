@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from .api.v1.auth import router as auth_router
 from .api.v1.company import router as company_router
+from .api.v1.driver import router as driver_router
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -29,4 +30,5 @@ def root():
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(company_router, prefix="/api/v1")
+app.include_router(driver_router, prefix="/api/v1")
 
