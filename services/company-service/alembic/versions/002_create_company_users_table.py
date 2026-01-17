@@ -20,23 +20,27 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Create company_users table."""
-    # Check if enum exists
+    # Create enum type for user company role (only if it doesn't exist)
     conn = op.get_bind()
     result = conn.execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'usercompanyrole'"))
-    if result.fetchone() is None:
-        usercompanyrole_enum = postgresql.ENUM(
-            'owner', 'admin', 'manager', 'dispatcher', 'support', 'driver', 'accountant',
-            name='usercompanyrole',
-            create_type=True
-        )
-        usercompanyrole_enum.create(conn, checkfirst=False)
+    enum_exists = result.fetchone() is not None
+    
+    if not enum_exists:
+        op.execute("CREATE TYPE usercompanyrole AS ENUM ('owner', 'admin', 'manager', 'dispatcher', 'support', 'driver', 'accountant')")
+    
+    # Reference the enum type (it exists now, either created above or already in DB)
+    usercompanyrole_enum = postgresql.ENUM(
+        'owner', 'admin', 'manager', 'dispatcher', 'support', 'driver', 'accountant',
+        name='usercompanyrole',
+        create_type=False  # Don't try to create, it already exists
+    )
     
     op.create_table(
         'company_users',
         sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('company_id', postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column('role', postgresql.ENUM('owner', 'admin', 'manager', 'dispatcher', 'support', 'driver', 'accountant', name='usercompanyrole'), nullable=False),
+        sa.Column('role', usercompanyrole_enum, nullable=False),
         sa.Column('is_active', sa.Boolean(), nullable=True, server_default='true'),
         sa.Column('is_verified', sa.Boolean(), nullable=True, server_default='false'),
         sa.Column('can_manage_drivers', sa.Boolean(), nullable=True, server_default='false'),
