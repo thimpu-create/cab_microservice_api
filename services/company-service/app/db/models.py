@@ -124,16 +124,22 @@ class UserCompanyRole(enum.Enum):
 
 class CompanyUser(Base):
     """
-    Association table linking users to companies.
-    Tracks which users are associated with which companies and their roles.
+    Association table (follower/following pattern) linking users to companies.
+    Many-to-many relationship: Users can belong to multiple companies, 
+    Companies can have multiple users.
+    
+    This follows the standard junction table pattern similar to:
+    - followers/following relationships in social media
+    - user-group associations
+    - many-to-many relationships with additional attributes
     """
     __tablename__ = "company_users"
     
     # ---- Primary Key ----
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
-    # ---- Foreign Keys ----
-    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # Links to auth-service users table
+    # ---- Foreign Keys (Junction Table Pattern) ----
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # Links to auth-service users.uuid
     company_id = Column(
         UUID(as_uuid=True),
         ForeignKey("cab_companies.id", ondelete="CASCADE"),
@@ -141,12 +147,12 @@ class CompanyUser(Base):
         index=True
     )
     
-    # ---- Role & Status ----
+    # ---- Role & Status (Additional attributes on the relationship) ----
     role = Column(Enum(UserCompanyRole), nullable=False, default=UserCompanyRole.driver)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     
-    # ---- Permissions (optional, can be expanded) ----
+    # ---- Permissions (Additional attributes) ----
     can_manage_drivers = Column(Boolean, default=False)
     can_manage_rides = Column(Boolean, default=False)
     can_view_reports = Column(Boolean, default=False)
@@ -160,10 +166,10 @@ class CompanyUser(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    # ---- Constraints ----
+    # ---- Constraints (Prevent duplicate associations) ----
     __table_args__ = (
         UniqueConstraint('user_id', 'company_id', name='uq_user_company'),
     )
     
     # ---- Relationships ----
-    company = relationship("CabCompany", backref="company_users")
+    company = relationship("CabCompany", backref="associated_users")
