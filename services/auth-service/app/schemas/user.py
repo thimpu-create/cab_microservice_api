@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, validator
 from typing import Optional
 from datetime import datetime
+from uuid import UUID as UUIDType
 
 
 # ======================================================
@@ -94,6 +95,7 @@ class VendorUserCreate(BaseModel):
 
 class UserRead(BaseModel):
     id: int
+    uuid: Optional[str] = None  # UUID as string for API responses
     fname: str
     mname: Optional[str]
     lname: str
@@ -106,6 +108,17 @@ class UserRead(BaseModel):
 
     class Config:
         orm_mode = True
+    
+    @validator('uuid', pre=True, always=True)
+    def convert_uuid_to_string(cls, v):
+        """Convert UUID object to string if needed."""
+        if v is None:
+            return None
+        if isinstance(v, UUIDType):
+            return str(v)
+        if isinstance(v, str):
+            return v
+        return str(v)
 
 
 # ======================================================

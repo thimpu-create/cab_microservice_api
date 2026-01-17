@@ -9,6 +9,7 @@ from app.schemas.user import (
     IndependentDriverRegister,
     UserRead,
     LoginSchema,
+    RoleRead,
 )
 
 from app.core.security import (
@@ -72,7 +73,31 @@ def register_passenger(
     db.add(user)
     db.commit()
     db.refresh(user)
-    return user
+    
+    # Ensure role relationship is loaded
+    if not hasattr(user, 'role') or user.role is None:
+        from sqlalchemy.orm import joinedload
+        user = db.query(User).options(joinedload(User.role)).filter(User.id == user.id).first()
+    
+    # Use parse_obj to ensure validators run
+    user_data = {
+        "id": user.id,
+        "uuid": user.uuid,  # UUID object - validator converts to string
+        "fname": user.fname,
+        "mname": user.mname,
+        "lname": user.lname,
+        "email": user.email,
+        "phone": user.phone,
+        "status": user.status,
+        "role": {"id": user.role.id, "name": user.role.name},
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+    }
+    
+    try:
+        return UserRead.parse_obj(user_data)
+    except AttributeError:
+        return UserRead.model_validate(user_data)
 
 
 # ======================================================
@@ -101,10 +126,33 @@ def register_vendor_admin(
     db.add(user)
     db.commit()
     db.refresh(user)
+    
+    # Ensure role relationship is loaded
+    if not hasattr(user, 'role') or user.role is None:
+        from sqlalchemy.orm import joinedload
+        user = db.query(User).options(joinedload(User.role)).filter(User.id == user.id).first()
 
     # Vendor creation can be added here (or via service layer)
 
-    return user
+    # Use parse_obj to ensure validators run
+    user_data = {
+        "id": user.id,
+        "uuid": user.uuid,  # UUID object - validator converts to string
+        "fname": user.fname,
+        "mname": user.mname,
+        "lname": user.lname,
+        "email": user.email,
+        "phone": user.phone,
+        "status": user.status,
+        "role": {"id": user.role.id, "name": user.role.name},
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+    }
+    
+    try:
+        return UserRead.parse_obj(user_data)
+    except AttributeError:
+        return UserRead.model_validate(user_data)
 
 
 # ======================================================
@@ -133,10 +181,36 @@ def register_independent_driver(
     db.add(user)
     db.commit()
     db.refresh(user)
+    
+    # Ensure role relationship is loaded
+    if not hasattr(user, 'role') or user.role is None:
+        from sqlalchemy.orm import joinedload
+        user = db.query(User).options(joinedload(User.role)).filter(User.id == user.id).first()
 
     # Driver profile creation can be added here
 
-    return user
+    # Use model_validate to ensure validators run
+    # Pass UUID object - validator will convert it to string
+    user_data = {
+        "id": user.id,
+        "uuid": user.uuid,  # UUID object - validator converts to string
+        "fname": user.fname,
+        "mname": user.mname,
+        "lname": user.lname,
+        "email": user.email,
+        "phone": user.phone,
+        "status": user.status,
+        "role": {"id": user.role.id, "name": user.role.name},
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+    }
+    
+    # Use parse_obj (Pydantic v1) or model_validate (Pydantic v2) to trigger validators
+    try:
+        return UserRead.parse_obj(user_data)
+    except AttributeError:
+        # Pydantic v2
+        return UserRead.model_validate(user_data)
 
 
 # ======================================================

@@ -5,7 +5,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 router = APIRouter(prefix="/company", tags=["Company"])
 
-COMPANY_SERVICE_URL = "http://company-service:8002/api/v1/company"
+COMPANY_SERVICE_URL = "http://company-service:8000/api/v1/company"
 # AUTH_SERVICE_URL = "http://localhost:8000/api/v1/auth"
 
 security = HTTPBearer()
