@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from uuid import UUID
 import httpx
@@ -6,7 +7,7 @@ import httpx
 from app.db.session import get_db
 from app.db.models import Driver, DriverStatus
 from app.schemas.driver import DriverCountResponse, DriverCreate, DriverResponse
-from app.core.security import get_current_user_id
+from app.core.security import get_current_user_id, security
 
 router = APIRouter(
     prefix="/drivers/company",
@@ -120,12 +121,30 @@ async def register_driver_for_company(
     Register a new driver for a company.
     Requires authentication.
     
-    Two modes:
-    1. If user_id is provided: Links existing user to company as driver
-    2. If user_id is NOT provided: Creates new user account in auth-service, then creates driver
+    **IMPORTANT:** 
+    - `company_id` comes from URL path (NOT in request body)
+    - Do NOT include `company_id` in the JSON body
     
-    For mode 2, you must provide: fname, lname, email, phone, password
+    **Two modes:**
+    1. **Link existing user**: Provide `user_id` in body
+    2. **Create new user**: Provide `fname`, `lname`, `email`, `phone`, `password` in body
+       (user account will be auto-created in auth-service)
+    
+    **Example for Mode 2 (create new user):**
+    ```json
+    {
+      "fname": "John",
+      "lname": "Driver",
+      "email": "john@example.com",
+      "phone": "+1234567890",
+      "password": "SecurePass123!",
+      "license_number": "DL123456",
+      "vehicle_make": "Toyota",
+      "vehicle_model": "Camry"
+    }
+    ```
     """
+    # Note: company_id is automatically set from URL parameter, not from payload
     driver_user_id: UUID
     
     # Mode 1: Use existing user
