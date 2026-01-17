@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from .api.v1.company import router as companies_router
+from .api.v1.company_user import router as company_users_router
 
 app = FastAPI(title="Company Service", version="1.0.0")
 
@@ -16,3 +17,4 @@ def root():
     return {"message": "Company Service API v1"}
 
 app.include_router(companies_router)
+app.include_router(company_users_router)

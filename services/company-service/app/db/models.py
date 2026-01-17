@@ -1,9 +1,10 @@
 import uuid
 from sqlalchemy import (
-    Column, String, Boolean, DateTime, Enum, JSON, Text
+    Column, String, Boolean, DateTime, Enum, JSON, Text, ForeignKey, UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from .base import Base
 import enum
 
@@ -108,3 +109,67 @@ class CabCompany(Base):
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class UserCompanyRole(enum.Enum):
+    """Roles a user can have within a company."""
+    owner = "owner"
+    admin = "admin"
+    manager = "manager"
+    dispatcher = "dispatcher"
+    support = "support"
+    driver = "driver"
+    accountant = "accountant"
+
+
+class CompanyUser(Base):
+    """
+    Association table (follower/following pattern) linking users to companies.
+    Many-to-many relationship: Users can belong to multiple companies, 
+    Companies can have multiple users.
+    
+    This follows the standard junction table pattern similar to:
+    - followers/following relationships in social media
+    - user-group associations
+    - many-to-many relationships with additional attributes
+    """
+    __tablename__ = "company_users"
+    
+    # ---- Primary Key ----
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # ---- Foreign Keys (Junction Table Pattern) ----
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # Links to auth-service users.uuid
+    company_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("cab_companies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    
+    # ---- Role & Status (Additional attributes on the relationship) ----
+    role = Column(Enum(UserCompanyRole), nullable=False, default=UserCompanyRole.driver)
+    is_active = Column(Boolean, default=True)
+    is_verified = Column(Boolean, default=False)
+    
+    # ---- Permissions (Additional attributes) ----
+    can_manage_drivers = Column(Boolean, default=False)
+    can_manage_rides = Column(Boolean, default=False)
+    can_view_reports = Column(Boolean, default=False)
+    can_manage_payments = Column(Boolean, default=False)
+    
+    # ---- Metadata ----
+    joined_at = Column(DateTime(timezone=True), server_default=func.now())
+    left_at = Column(DateTime(timezone=True), nullable=True)
+    notes = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # ---- Constraints (Prevent duplicate associations) ----
+    __table_args__ = (
+        UniqueConstraint('user_id', 'company_id', name='uq_user_company'),
+    )
+    
+    # ---- Relationships ----
+    company = relationship("CabCompany", backref="associated_users")
