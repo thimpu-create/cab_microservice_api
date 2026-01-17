@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
@@ -18,15 +18,50 @@ class DriverBase(BaseModel):
 
 
 class DriverCreate(DriverBase):
-    # User information (will create account in auth-service if user_id not provided)
-    user_id: Optional[UUID] = None  # If provided, use existing user
-    # If user_id not provided, create new user with these fields:
+    """
+    Schema for creating a driver.
+    
+    Two modes:
+    1. Link existing user: Provide `user_id` only
+    2. Create new user: Provide `fname`, `lname`, `email`, `phone`, `password` (user_id will be auto-created)
+    
+    Note: `company_id` comes from URL path, not body.
+    """
+    # Mode 1: Link existing user (provide user_id)
+    user_id: Optional[UUID] = None
+    
+    # Mode 2: Create new user (provide these fields, user_id will be auto-created)
     fname: Optional[str] = None
     mname: Optional[str] = None
     lname: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     password: Optional[str] = None
+    
+    @model_validator(mode='after')
+    def validate_user_info(self):
+        """Ensure either user_id OR user creation fields are provided"""
+        has_user_id = self.user_id is not None
+        has_user_details = all([
+            self.fname,
+            self.lname,
+            self.email,
+            self.phone,
+            self.password
+        ])
+        
+        if not has_user_id and not has_user_details:
+            raise ValueError(
+                "Either provide 'user_id' (to link existing user) OR provide "
+                "'fname', 'lname', 'email', 'phone', 'password' (to create new user)"
+            )
+        
+        if has_user_id and has_user_details:
+            raise ValueError(
+                "Provide either 'user_id' OR user creation fields, not both"
+            )
+        
+        return self
 
 
 class DriverUpdate(BaseModel):
