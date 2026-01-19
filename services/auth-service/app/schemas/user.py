@@ -73,6 +73,18 @@ class IndependentDriverRegister(BaseModel):
     license_number: Optional[str] = None
 
 
+class VendorDriverRegister(BaseModel):
+    fname: str
+    mname: Optional[str] = None
+    lname: str
+    email: EmailStr
+    phone: str
+    password: str
+
+    # optional driver-specific info
+    license_number: Optional[str] = None
+
+
 # ======================================================
 # VENDOR-MANAGED USER CREATION (AUTH REQUIRED)
 # ======================================================
