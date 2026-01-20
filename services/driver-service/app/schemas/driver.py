@@ -2,7 +2,7 @@ from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
-from app.db.models import DriverStatus
+from app.db.models import DriverStatus, VehicleType
 
 
 class DriverBase(BaseModel):
@@ -68,6 +68,7 @@ class DriverUpdate(BaseModel):
     license_number: Optional[str] = None
     license_expiry_date: Optional[datetime] = None
     license_state_province: Optional[str] = None
+    vehicle_type: Optional[VehicleType] = None
     vehicle_make: Optional[str] = None
     vehicle_model: Optional[str] = None
     vehicle_year: Optional[int] = None
