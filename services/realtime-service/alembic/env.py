@@ -12,7 +12,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app.db.base import Base       # your Base
-import app.db.models        # import all models
+from app.db.models import *        # import all models
 from app.db.session import DATABASE_URL  # your database URL
 
 # this is the Alembic Config object, which provides
