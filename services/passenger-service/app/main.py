@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from app.api.v1.rides import router as rides_router
 
 app = FastAPI(title="Passenger Service", version="1.0.0")
 
@@ -13,3 +14,6 @@ def info():
 @app.get("/api/v1")
 def root():
     return {"message": "Passenger Service API v1"}
+
+# Include routers
+app.include_router(rides_router, prefix="/api/v1")

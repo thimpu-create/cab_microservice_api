@@ -7,6 +7,7 @@ from app.schemas.user import (
     PassengerRegister,
     VendorAdminRegister,
     IndependentDriverRegister,
+    VendorDriverRegister,
     UserRead,
     LoginSchema,
     RoleRead,
@@ -210,6 +211,59 @@ def register_independent_driver(
         return UserRead.parse_obj(user_data)
     except AttributeError:
         # Pydantic v2
+        return UserRead.model_validate(user_data)
+
+
+# ======================================================
+# REGISTER: VENDOR DRIVER (PUBLIC - for company drivers)
+# ======================================================
+
+@router.post("/register/vendor-driver", response_model=UserRead)
+def register_vendor_driver(
+    payload: VendorDriverRegister,
+    db: Session = Depends(get_db),
+):
+    check_existing_user(db, payload.email, payload.phone)
+
+    role = get_role(db, "VendorDriver")
+
+    user = User(
+        fname=payload.fname,
+        mname=payload.mname,
+        lname=payload.lname,
+        email=payload.email.lower(),
+        phone=payload.phone,
+        password=hash_password(payload.password),
+        role_id=role.id,
+    )
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    # Ensure role relationship is loaded
+    if not hasattr(user, 'role') or user.role is None:
+        from sqlalchemy.orm import joinedload
+        user = db.query(User).options(joinedload(User.role)).filter(User.id == user.id).first()
+
+    # Use model_validate to ensure validators run
+    user_data = {
+        "id": user.id,
+        "uuid": user.uuid,  # UUID object - validator converts to string
+        "fname": user.fname,
+        "mname": user.mname,
+        "lname": user.lname,
+        "email": user.email,
+        "phone": user.phone,
+        "status": user.status,
+        "role": {"id": user.role.id, "name": user.role.name},
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+    }
+    
+    try:
+        return UserRead.parse_obj(user_data)
+    except AttributeError:
         return UserRead.model_validate(user_data)
 
 

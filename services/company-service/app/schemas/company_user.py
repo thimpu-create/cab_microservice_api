@@ -6,6 +6,8 @@ from app.db.models import UserCompanyRole
 
 
 class CompanyUserBase(BaseModel):
+    # Note: role field kept for database compatibility but NOT used for authorization
+    # Authorization is based on system role (VendorDriver, VendorManager, etc.) from auth-service
     role: UserCompanyRole = UserCompanyRole.driver
     is_active: bool = True
     is_verified: bool = False

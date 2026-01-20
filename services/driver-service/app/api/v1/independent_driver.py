@@ -121,6 +121,7 @@ async def register_independent_driver(
         license_number=payload.license_number,
         license_expiry_date=payload.license_expiry_date,
         license_state_province=payload.license_state_province,
+        vehicle_type=payload.vehicle_type,  # bike, car, auto, premium_car
         vehicle_make=payload.vehicle_make,
         vehicle_model=payload.vehicle_model,
         vehicle_year=payload.vehicle_year,

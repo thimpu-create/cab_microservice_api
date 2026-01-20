@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.db.session import get_db
-from app.db.models import CabCompany
+from app.db.models import CabCompany, CompanyUser, UserCompanyRole
 from app.schemas.cab_company import (
     CabCompanyCreate,
     CabCompanyResponse,
@@ -46,6 +46,23 @@ def register_company(
     )
 
     db.add(company)
+    db.flush()  # Flush to get company.id without committing
+    
+    # Automatically create CompanyUser entry for owner
+    # Note: Role field kept for DB compatibility but system role (VendorAdmin) is used for authorization
+    company_user = CompanyUser(
+        user_id=user_id,
+        company_id=company.id,
+        role=UserCompanyRole.owner,  # Default, but system role is used for auth
+        is_active=True,
+        is_verified=True,  # Owner is automatically verified
+        can_manage_drivers=True,
+        can_manage_rides=True,
+        can_view_reports=True,
+        can_manage_payments=True,
+    )
+    
+    db.add(company_user)
     db.commit()
     db.refresh(company)
 

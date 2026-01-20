@@ -12,6 +12,7 @@ load_dotenv()
 # )
 
 DATABASE_URL = "postgresql://postgres:password@postgres:5432/driverdb"
+# DATABASE_URL = "postgresql://postgres:password@localhost:5432/driverdb"
 
 engine = create_engine(DATABASE_URL, echo=True)
 
