@@ -53,6 +53,7 @@ services:
       - analytics-service
       - realtime-service
       - geo-service
+      - sos-service
     networks:
       - cab-network
     healthcheck:
@@ -237,6 +238,22 @@ services:
     container_name: analytics-service
     ports:
       - "8013:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    networks:
+      - cab-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      retries: 5
+
+  sos-service:
+    build: ./sos-service
+    container_name: sos-service
+    ports:
+      - "8014:8000"
     env_file:
       - .env
     depends_on:
