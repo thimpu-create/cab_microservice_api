@@ -14,6 +14,7 @@ class NotificationType(str, Enum):
     RIDE_EXPIRED = "ride_expired"
     DRIVER_LOCATION_UPDATE = "driver_location_update"
     RIDE_STATUS_UPDATE = "ride_status_update"
+    SOS_ALERT = "sos_alert"  # Emergency SOS alert
 
 
 class NotificationChannel(str, Enum):
