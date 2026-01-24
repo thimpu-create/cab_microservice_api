@@ -11,7 +11,9 @@ from app.db.models import (
 )
 from app.core.redis_client import calculate_demand_supply_ratio
 from app.core.utils import calculate_distance, is_peak_hours
+from app.core.driver_info_client import get_driver_company_id
 from app.core.config import settings
+from uuid import UUID
 
 
 class PricingEngine:
@@ -28,6 +30,8 @@ class PricingEngine:
         dropoff_lon: float,
         vehicle_type: VehicleType,
         city_code: str,
+        driver_id: Optional[UUID] = None,
+        company_id: Optional[UUID] = None,
         estimated_distance_km: Optional[float] = None,
         estimated_duration_minutes: Optional[float] = None,
         request_id: Optional[str] = None,
@@ -36,8 +40,16 @@ class PricingEngine:
         """
         Calculate fare for a ride.
         
+        Args:
+            driver_id: Driver ID (will fetch company_id if not provided)
+            company_id: Company ID (NULL = independent driver, NOT NULL = company driver)
+        
         Returns detailed breakdown including all components.
         """
+        # Get company_id if driver_id provided
+        if driver_id and not company_id:
+            company_id = await get_driver_company_id(driver_id)
+        
         # Calculate distance if not provided
         if estimated_distance_km is None:
             estimated_distance_km = calculate_distance(
@@ -48,10 +60,11 @@ class PricingEngine:
         if estimated_duration_minutes is None:
             estimated_duration_minutes = (estimated_distance_km / 30.0) * 60
         
-        # Get pricing profile
-        pricing_profile = self._get_pricing_profile(vehicle_type, city_code)
+        # Get pricing profile (company_id = NULL for platform, NOT NULL for company)
+        pricing_profile = self._get_pricing_profile(vehicle_type, city_code, company_id)
         if not pricing_profile:
-            raise ValueError(f"No pricing profile found for {vehicle_type.value} in {city_code}")
+            pricing_type = "platform" if company_id is None else "company"
+            raise ValueError(f"No {pricing_type} pricing profile found for {vehicle_type.value} in {city_code}")
         
         # Calculate base components
         base_fare = pricing_profile.base_fare
@@ -60,14 +73,14 @@ class PricingEngine:
         
         subtotal = base_fare + distance_cost + time_cost
         
-        # Check peak hours
+        # Check peak hours (use company-specific or platform peak hours)
         current_time = datetime.now()
-        peak_multiplier = self._get_peak_multiplier(city_code, current_time)
+        peak_multiplier = self._get_peak_multiplier(city_code, current_time, company_id)
         peak_adjusted_subtotal = subtotal * peak_multiplier
         
-        # Calculate surge
+        # Calculate surge (use company-specific or platform surge config)
         surge_multiplier = await self._calculate_surge(
-            pickup_lat, pickup_lon, vehicle_type
+            pickup_lat, pickup_lon, vehicle_type, company_id
         )
         surge_adjusted_subtotal = peak_adjusted_subtotal * surge_multiplier
         
@@ -117,6 +130,8 @@ class PricingEngine:
                 "duration_minutes": round(estimated_duration_minutes, 2),
                 "vehicle_type": vehicle_type.value,
                 "city_code": city_code,
+                "company_id": str(company_id) if company_id else None,
+                "pricing_type": "company" if company_id else "platform",
                 "minimum_fare_applied": minimum_fare_applied,
                 "regulatory_cap_applied": regulatory_cap_applied
             }
@@ -126,6 +141,8 @@ class PricingEngine:
         self._save_calculation(
             request_id=request_id,
             user_id=user_id,
+            driver_id=driver_id,
+            company_id=company_id,
             vehicle_type=vehicle_type,
             city_code=city_code,
             pickup_lat=pickup_lat,
@@ -147,20 +164,45 @@ class PricingEngine:
         
         return result
     
-    def _get_pricing_profile(self, vehicle_type: VehicleType, city_code: str) -> Optional[PricingProfile]:
-        """Get active pricing profile for vehicle type and city."""
-        return self.db.query(PricingProfile).filter(
-            PricingProfile.vehicle_type == vehicle_type,
-            PricingProfile.city_code == city_code,
-            PricingProfile.is_active == True
-        ).first()
+    def _get_pricing_profile(self, vehicle_type: VehicleType, city_code: str, company_id: Optional[UUID] = None) -> Optional[PricingProfile]:
+        """Get active pricing profile for vehicle type and city.
+        company_id = NULL: Platform pricing (independent drivers)
+        company_id = NOT NULL: Company pricing (company drivers)
+        """
+        from sqlalchemy import or_
+        # Use proper NULL check
+        if company_id is None:
+            return self.db.query(PricingProfile).filter(
+                PricingProfile.vehicle_type == vehicle_type,
+                PricingProfile.city_code == city_code,
+                PricingProfile.company_id.is_(None),  # Platform pricing
+                PricingProfile.is_active == True
+            ).first()
+        else:
+            return self.db.query(PricingProfile).filter(
+                PricingProfile.vehicle_type == vehicle_type,
+                PricingProfile.city_code == city_code,
+                PricingProfile.company_id == company_id,  # Company pricing
+                PricingProfile.is_active == True
+            ).first()
     
-    def _get_peak_multiplier(self, city_code: str, current_time: datetime) -> float:
-        """Get peak hours multiplier for current time."""
-        peak_hours = self.db.query(PeakHours).filter(
-            PeakHours.city_code == city_code,
-            PeakHours.is_active == True
-        ).all()
+    def _get_peak_multiplier(self, city_code: str, current_time: datetime, company_id: Optional[UUID] = None) -> float:
+        """Get peak hours multiplier for current time.
+        Uses company-specific peak hours if company_id provided, otherwise platform peak hours.
+        """
+        # Use proper NULL check
+        if company_id is None:
+            peak_hours = self.db.query(PeakHours).filter(
+                PeakHours.city_code == city_code,
+                PeakHours.company_id.is_(None),  # Platform peak hours
+                PeakHours.is_active == True
+            ).all()
+        else:
+            peak_hours = self.db.query(PeakHours).filter(
+                PeakHours.city_code == city_code,
+                PeakHours.company_id == company_id,  # Company peak hours
+                PeakHours.is_active == True
+            ).all()
         
         for peak in peak_hours:
             if is_peak_hours(current_time, peak.start_time, peak.end_time, peak.day_of_week):
@@ -173,14 +215,17 @@ class PricingEngine:
         area_lat: float,
         area_lon: float,
         vehicle_type: VehicleType,
+        company_id: Optional[UUID] = None,
         radius_km: float = 10.0
     ) -> float:
         """
         Calculate surge multiplier based on demand/supply ratio.
+        Uses company-specific surge config if company_id provided, otherwise platform surge config.
         """
-        # Get surge config
+        # Get surge config (company-specific or platform)
         surge_config = self.db.query(SurgeConfig).filter(
             SurgeConfig.vehicle_type == vehicle_type,
+            SurgeConfig.company_id == company_id,  # Match company_id
             SurgeConfig.is_active == True
         ).first()
         
@@ -209,14 +254,25 @@ class PricingEngine:
         
         return surge_multiplier
     
-    def _get_regulatory_cap(self, vehicle_type: VehicleType, city_code: str) -> Optional[float]:
-        """Get regulatory cap for vehicle type and city."""
+    def _get_regulatory_cap(self, vehicle_type: VehicleType, city_code: str, company_id: Optional[UUID] = None) -> Optional[float]:
+        """Get regulatory cap for vehicle type and city.
+        Uses company-specific caps if company_id provided, otherwise platform caps.
+        """
         # Try city-specific cap first
-        cap = self.db.query(RegulatoryCap).filter(
-            RegulatoryCap.city_code == city_code,
-            RegulatoryCap.vehicle_type == vehicle_type,
-            RegulatoryCap.is_active == True
-        ).first()
+        if company_id is None:
+            cap = self.db.query(RegulatoryCap).filter(
+                RegulatoryCap.city_code == city_code,
+                RegulatoryCap.vehicle_type == vehicle_type,
+                RegulatoryCap.company_id.is_(None),  # Platform regulatory cap
+                RegulatoryCap.is_active == True
+            ).first()
+        else:
+            cap = self.db.query(RegulatoryCap).filter(
+                RegulatoryCap.city_code == city_code,
+                RegulatoryCap.vehicle_type == vehicle_type,
+                RegulatoryCap.company_id == company_id,  # Company regulatory cap
+                RegulatoryCap.is_active == True
+            ).first()
         
         if cap:
             return cap.max_fare_amount
@@ -229,6 +285,8 @@ class PricingEngine:
         self,
         request_id: Optional[str],
         user_id: Optional[str],
+        driver_id: Optional[UUID],
+        company_id: Optional[UUID],
         vehicle_type: VehicleType,
         city_code: str,
         pickup_lat: float,
@@ -249,11 +307,12 @@ class PricingEngine:
     ):
         """Save pricing calculation to audit log."""
         from app.db.models import PricingCalculation
-        from uuid import UUID
         
         calculation = PricingCalculation(
             request_id=request_id,
             user_id=UUID(user_id) if user_id else None,
+            driver_id=driver_id,
+            company_id=company_id,
             city_code=city_code,
             pickup_lat=pickup_lat,
             pickup_lon=pickup_lon,

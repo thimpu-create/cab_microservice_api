@@ -1,15 +1,19 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-import uuid
+import json
 import time
 from typing import List, Tuple
 from uuid import UUID
-
-import time
 from app.core.redis_client import redis_conn, decode_val, decode_dict
 from app.core.websocket_manager import ws_manager
 from app.core.ride_manager import ride_manager, RideStatus
 from app.core.notification_client import notification_client
 from app.core.matching_algorithm import matching_algorithm
+from app.core.pricing_client import get_fare_estimate
+from app.core.ride_service_client import (
+    create_ride_request as ride_service_create,
+    cancel_ride as ride_service_cancel,
+    _AlreadyRequested,
+)
 from app.schemas.ride import RideRequest
 from app.core.security import get_current_user_id, get_current_user_role
 
@@ -48,13 +52,12 @@ async def request_ride(
             "ride_status": ride.get("status")
         }
     
-    # Check if passenger already has a pending request
+    # Check if passenger already has a pending request (Redis)
     for key in redis_conn.scan_iter("ride_request:*"):
         ride_info = redis_conn.hgetall(key)
         if ride_info:
             pid = decode_val(ride_info.get("passenger_id", b""))
             ride_status = decode_val(ride_info.get("status", b""))
-            
             if pid == passenger_id and ride_status == RideStatus.PENDING:
                 request_id = decode_val(key).split(":", 1)[1] if isinstance(key, bytes) else key.split(":", 1)[1]
                 return {
@@ -62,9 +65,34 @@ async def request_ride(
                     "request_id": request_id,
                     "message": "You already have a pending ride request"
                 }
-    
-    # Generate request ID
-    request_id = str(uuid.uuid4())
+
+    # Create ride request via ride-service (source of truth for request_id)
+    vt = data.vehicle_type_preference.value if data.vehicle_type_preference else None
+    try:
+        created = await ride_service_create(
+            passenger_id=passenger_id,
+            lat=lat,
+            lon=lon,
+            pickup_address=data.pickup_address,
+            dropoff_address=data.dropoff_address,
+            dropoff_lat=data.dropoff_lat,
+            dropoff_lon=data.dropoff_lon,
+            vehicle_type_preference=vt,
+            min_driver_rating=data.min_driver_rating,
+            city_code=data.city_code,
+        )
+    except _AlreadyRequested as e:
+        return {
+            "status": "already_requested",
+            "request_id": e.request_id or "",
+            "message": e.message or "You already have a pending ride request",
+        }
+    if not created:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Ride service unavailable; please retry",
+        )
+    request_id = created["request_id"]
     
     # Save passenger location
     redis_conn.hset(
@@ -103,7 +131,7 @@ async def request_ride(
     # Use advanced matching algorithm to score and rank drivers
     driver_matches = await matching_algorithm.score_drivers(
         drivers_with_distance=available_drivers_raw,
-        requested_vehicle_type=data.vehicle_type_preference,
+        requested_vehicle_type=vt,
         min_rating=data.min_driver_rating
     )
     
@@ -116,6 +144,32 @@ async def request_ride(
     # Use top-scored drivers (sorted by algorithm)
     available_drivers = [(match.driver_id, match.distance_km) for match in driver_matches]
     
+    # Fetch fare estimate when we have dropoff (platform pricing, no driver yet)
+    estimated_fare = None
+    fare_breakdown = None
+    if data.dropoff_lat is not None and data.dropoff_lon is not None:
+        city = (data.city_code or "").strip() or "MUM"
+        vt_fare = (vt or "car")
+        estimate = await get_fare_estimate(
+            pickup_lat=lat,
+            pickup_lon=lon,
+            dropoff_lat=data.dropoff_lat,
+            dropoff_lon=data.dropoff_lon,
+            vehicle_type=vt_fare,
+            city_code=city,
+        )
+        if estimate:
+            estimated_fare = estimate.get("final_fare")
+            fare_breakdown = {
+                "base_fare": estimate.get("base_fare"),
+                "distance_cost": estimate.get("distance_cost"),
+                "time_cost": estimate.get("time_cost"),
+                "peak_multiplier": estimate.get("peak_multiplier"),
+                "surge_multiplier": estimate.get("surge_multiplier"),
+                "minimum_fare": estimate.get("minimum_fare"),
+                "currency": estimate.get("currency", "INR"),
+            }
+    
     # Create ride request using ride manager
     await ride_manager.create_ride_request(
         request_id=request_id,
@@ -126,6 +180,8 @@ async def request_ride(
         dropoff_lon=data.dropoff_lon,
         pickup_address=data.pickup_address,
         dropoff_address=data.dropoff_address,
+        estimated_fare=estimated_fare,
+        fare_breakdown=fare_breakdown,
     )
     
     # Send ride request to nearby available drivers (sorted by match score)
@@ -138,7 +194,7 @@ async def request_ride(
     for match in top_matches:
         driver_id = match.driver_id
         if driver_id in ws_manager.driver_connections:
-            await ws_manager.send_to_driver(driver_id, {
+            payload = {
                 "type": "ride_request",
                 "request_id": request_id,
                 "passenger_id": passenger_id,
@@ -149,10 +205,16 @@ async def request_ride(
                 "pickup_address": data.pickup_address,
                 "dropoff_address": data.dropoff_address,
                 "distance_km": round(match.distance_km, 2),
-                "match_score": round(match.score, 3),  # Include match score for transparency
+                "match_score": round(match.score, 3),
                 "vehicle_type": match.vehicle_type,
-                "driver_rating": match.average_rating
-            })
+                "driver_rating": match.average_rating,
+            }
+            if estimated_fare is not None:
+                payload["estimated_fare"] = round(estimated_fare, 2)
+                payload["currency"] = fare_breakdown.get("currency", "INR") if fare_breakdown else "INR"
+            if fare_breakdown:
+                payload["fare_breakdown"] = fare_breakdown
+            await ws_manager.send_to_driver(driver_id, payload)
             driver_ids_for_notification.append(driver_id)
             notified_count += 1
     
@@ -168,12 +230,18 @@ async def request_ride(
             pickup_address=data.pickup_address
         )
     
-    return {
+    out = {
         "status": "request_sent",
         "request_id": request_id,
         "drivers_notified": notified_count,
-        "message": f"Ride request sent to {notified_count} nearby drivers"
+        "message": f"Ride request sent to {notified_count} nearby drivers",
     }
+    if estimated_fare is not None:
+        out["estimated_fare"] = round(estimated_fare, 2)
+        out["currency"] = fare_breakdown.get("currency", "INR") if fare_breakdown else "INR"
+    if fare_breakdown:
+        out["fare_breakdown"] = fare_breakdown
+    return out
 
 
 @router.post("/{request_id}/cancel", status_code=status.HTTP_200_OK)
@@ -208,49 +276,24 @@ async def cancel_ride(
             detail="You are not authorized to cancel this ride"
         )
     
-    # Get cancellation reason from request body if provided
-    cancellation_reason = None  # Could be extracted from request body if needed
-    
-    # Cancel the ride
+    cancellation_reason = None
+
+    # Persist cancel in ride-service
+    ok = await ride_service_cancel(request_id, cancelled_by, cancellation_reason)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Ride service unavailable; cancel not persisted",
+        )
+
+    # Update Redis, notify parties, cleanup
     success = await ride_manager.cancel_ride(request_id, cancelled_by, user_id_str, cancellation_reason)
-    
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot cancel ride in current status"
+            detail="Cannot cancel ride in current status",
         )
-    
-    # Save cancelled ride to database
-    try:
-        from app.db.session import SessionLocal
-        from app.core.ride_persistence import save_ride_to_db
-        
-        db = SessionLocal()
-        try:
-            save_ride_to_db(
-                db=db,
-                request_id=request_id,
-                passenger_id=ride_data.get("passenger_id"),
-                driver_id=ride_data.get("driver_id"),
-                pickup_lat=float(ride_data.get("pickup_lat")),
-                pickup_lon=float(ride_data.get("pickup_lon")),
-                dropoff_lat=float(ride_data.get("dropoff_lat")) if ride_data.get("dropoff_lat") else None,
-                dropoff_lon=float(ride_data.get("dropoff_lon")) if ride_data.get("dropoff_lon") else None,
-                pickup_address=ride_data.get("pickup_address"),
-                dropoff_address=ride_data.get("dropoff_address"),
-                status="cancelled",
-                created_at=ride_data.get("created_at"),
-                assigned_at=ride_data.get("assigned_at"),
-                cancelled_at=time.time(),
-                cancelled_by=cancelled_by,
-                cancellation_reason=cancellation_reason,
-            )
-        finally:
-            db.close()
-    except Exception as e:
-        print(f"⚠️ Failed to save cancelled ride to database: {e}")
-        # Continue even if DB save fails
-    
+
     return {
         "status": "cancelled",
         "request_id": request_id,
@@ -283,7 +326,7 @@ async def get_ride_status(
             detail="You are not authorized to view this ride"
         )
     
-    return {
+    out = {
         "request_id": request_id,
         "status": ride_data.get("status"),
         "passenger_id": ride_data.get("passenger_id"),
@@ -295,6 +338,19 @@ async def get_ride_status(
         "created_at": ride_data.get("created_at"),
         "assigned_at": ride_data.get("assigned_at"),
     }
+    ef = ride_data.get("estimated_fare")
+    if ef is not None:
+        try:
+            out["estimated_fare"] = round(float(ef), 2)
+        except (TypeError, ValueError):
+            out["estimated_fare"] = ef
+    fb = ride_data.get("fare_breakdown")
+    if fb:
+        try:
+            out["fare_breakdown"] = json.loads(fb) if isinstance(fb, str) else fb
+        except (TypeError, json.JSONDecodeError):
+            out["fare_breakdown"] = fb
+    return out
 
 
 @router.get("/active", status_code=status.HTTP_200_OK)

@@ -67,3 +67,29 @@ def register_company(
     db.refresh(company)
 
     return company
+
+
+@router.get(
+    "/owned-by/{user_id}",
+    response_model=CabCompanyResponse,
+    status_code=status.HTTP_200_OK,
+)
+def get_company_by_owner(
+    user_id: UUID,
+    db: Session = Depends(get_db),
+):
+    """
+    Get company owned by a user (owner_user_id = user_id).
+    Used by other services to get company_id for VendorAdmin users.
+    """
+    company = db.query(CabCompany).filter(
+        CabCompany.owner_user_id == user_id
+    ).first()
+    
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Company not found for this user"
+        )
+    
+    return company

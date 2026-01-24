@@ -1,26 +1,35 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, Literal
 from uuid import UUID
+from enum import Enum
 
 
-class VehicleType(str):
-    """Vehicle type preference - extensible for future additions."""
-    BIKE = "bike"
-    CAR = "car"
-    AUTO = "auto"
-    PREMIUM_CAR = "premium_car"
+class VehicleType(str, Enum):
+    """Vehicle types that passengers can request.
+    This is the source of truth for ride requests.
+    Must match what drivers register in driver-service.
+    """
+    bike = "bike"
+    car = "car"
+    auto = "auto"  # Auto-rickshaw
+    premium_car = "premium_car"
 
 
 class RideRequest(BaseModel):
+    """Passenger ride request - passenger specifies vehicle type preference here."""
     passenger_id: str  # UUID as string
-    lat: float
-    lon: float
+    lat: float = Field(..., description="Pickup latitude")
+    lon: float = Field(..., description="Pickup longitude")
     pickup_address: Optional[str] = None
     dropoff_address: Optional[str] = None
-    dropoff_lat: Optional[float] = None
-    dropoff_lon: Optional[float] = None
-    vehicle_type_preference: Optional[str] = None  # bike, car, auto, premium_car - None means no preference
-    min_driver_rating: Optional[float] = None  # Minimum driver rating (1.0-5.0)
+    dropoff_lat: Optional[float] = Field(None, description="Dropoff latitude (required for fare estimate)")
+    dropoff_lon: Optional[float] = Field(None, description="Dropoff longitude (required for fare estimate)")
+    vehicle_type_preference: Optional[VehicleType] = Field(
+        None, 
+        description="Vehicle type preference: bike, car, auto, premium_car. None = any vehicle type"
+    )
+    min_driver_rating: Optional[float] = Field(None, ge=1.0, le=5.0, description="Minimum driver rating (1.0-5.0)")
+    city_code: Optional[str] = Field(None, description="City code (e.g. MUM, DEL) - for fare estimate, default: MUM")
 
 
 class LocationUpdate(BaseModel):

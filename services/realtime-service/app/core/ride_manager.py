@@ -2,6 +2,7 @@
 Centralized ride state management with timeout handling and status tracking.
 """
 import asyncio
+import json
 import time
 from typing import Optional, Dict, Any
 from uuid import UUID
@@ -9,7 +10,6 @@ from uuid import UUID
 from app.core.redis_client import redis_conn, decode_dict, decode_val
 from app.core.config import settings
 from app.core.websocket_manager import ws_manager
-from app.core.notification_client import notification_client
 from app.core.notification_client import notification_client
 
 
@@ -40,6 +40,8 @@ class RideManager:
         dropoff_lon: Optional[float] = None,
         pickup_address: Optional[str] = None,
         dropoff_address: Optional[str] = None,
+        estimated_fare: Optional[float] = None,
+        fare_breakdown: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Create a new ride request and set up timeout."""
         # Save ride request in Redis
@@ -59,6 +61,10 @@ class RideManager:
             ride_data["pickup_address"] = pickup_address
         if dropoff_address:
             ride_data["dropoff_address"] = dropoff_address
+        if estimated_fare is not None:
+            ride_data["estimated_fare"] = str(estimated_fare)
+        if fare_breakdown is not None:
+            ride_data["fare_breakdown"] = json.dumps(fare_breakdown)
         
         redis_conn.hset(f"ride_request:{request_id}", mapping=ride_data)
         redis_conn.expire(f"ride_request:{request_id}", 3600)  # 1 hour expiry

@@ -1,6 +1,10 @@
 from fastapi import FastAPI
 
+from app.api.v1 import internal
+
 app = FastAPI(title="Ride Service", version="1.0.0")
+
+app.include_router(internal.router, prefix="/api/v1")
 
 @app.get("/health")
 def health():

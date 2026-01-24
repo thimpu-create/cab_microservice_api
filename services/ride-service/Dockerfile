@@ -12,8 +12,7 @@ WORKDIR /app
 # Install system dependencies
 # -------------------------------
 RUN apt-get update && apt-get install -y \
-    libpq-dev gcc \
-    build-essential \
+    libpq-dev gcc build-essential postgresql-client curl \
     && rm -rf /var/lib/apt/lists/*
 
 # -------------------------------
@@ -36,7 +35,6 @@ COPY . .
 # -------------------------------
 EXPOSE 8000
 
-# -------------------------------
-# Run FastAPI server
-# -------------------------------
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

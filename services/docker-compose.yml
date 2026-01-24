@@ -152,6 +152,8 @@ services:
     depends_on:
       - postgres
       - redis
+      - pricing-service
+      - ride-service
     networks:
       - cab-network
     healthcheck:

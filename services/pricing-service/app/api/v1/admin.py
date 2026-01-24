@@ -24,14 +24,15 @@ async def list_pricing_profiles(
     db: Session = Depends(get_db),
     role: str = Depends(get_current_user_role)
 ):
-    """List pricing profiles (admin only)."""
+    """List platform pricing profiles (admin only - company_id = NULL)."""
     if not verify_admin_role(role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
         )
     
-    query = db.query(PricingProfile)
+    # Only show platform pricing (company_id = NULL)
+    query = db.query(PricingProfile).filter(PricingProfile.company_id.is_(None))
     
     if city_code:
         query = query.filter(PricingProfile.city_code == city_code)
@@ -55,7 +56,9 @@ async def create_pricing_profile(
             detail="Admin access required"
         )
     
+    # Admin creates platform pricing (company_id = NULL)
     new_profile = PricingProfile(
+        company_id=None,  # Platform pricing for independent drivers
         city_code=profile.city_code,
         state_code=profile.state_code,
         vehicle_type=profile.vehicle_type,
@@ -117,14 +120,15 @@ async def list_surge_configs(
     db: Session = Depends(get_db),
     role: str = Depends(get_current_user_role)
 ):
-    """List surge configurations (admin only)."""
+    """List platform surge configurations (admin only - company_id = NULL)."""
     if not verify_admin_role(role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
         )
     
-    configs = db.query(SurgeConfig).all()
+    # Only show platform surge configs
+    configs = db.query(SurgeConfig).filter(SurgeConfig.company_id.is_(None)).all()
     return configs
 
 
@@ -142,7 +146,11 @@ async def update_surge_config(
             detail="Admin access required"
         )
     
-    existing = db.query(SurgeConfig).filter(SurgeConfig.vehicle_type == vehicle_type).first()
+    # Only allow updating platform surge config (company_id = NULL)
+    existing = db.query(SurgeConfig).filter(
+        SurgeConfig.vehicle_type == vehicle_type,
+        SurgeConfig.company_id.is_(None)  # Only platform surge (use .is_(None) for NULL check)
+    ).first()
     
     if existing:
         if config.base_demand_threshold is not None:
@@ -153,7 +161,9 @@ async def update_surge_config(
             existing.surge_increment = config.surge_increment
     else:
         from app.core.config import settings
+        # Create platform surge config (company_id = NULL)
         existing = SurgeConfig(
+            company_id=None,  # Platform surge config
             vehicle_type=vehicle_type,
             base_demand_threshold=config.base_demand_threshold or settings.DEFAULT_BASE_DEMAND_THRESHOLD,
             max_surge_multiplier=config.max_surge_multiplier or settings.DEFAULT_MAX_SURGE,
