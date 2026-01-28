@@ -30,6 +30,8 @@ gunicorn.conf.py
 .env.*
 !.env.example
 
+firebase-key.json
+
 # ===============================
 # Docker
 # ===============================
