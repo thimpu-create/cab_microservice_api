@@ -7,5 +7,10 @@ SQLAlchemy
 alembic
 httpx
 python-multipart
-passlib[bcrypt]
+passlib==1.7.4
 redis
+PyJWT
+email-validator
+psycopg2
+bcrypt==5.0.0
+firebase-admin
