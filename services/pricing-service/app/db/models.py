@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Float, DateTime, Boolean, ForeignKey, Integer, Text, Enum as SQLEnum
+from sqlalchemy import Column, String, Float, DateTime, Boolean, ForeignKey, Integer, Text, Enum as SQLEnum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -17,10 +17,16 @@ class VehicleType(str, enum.Enum):
 
 
 class PricingProfile(Base):
-    """Base pricing rules per vehicle type per city."""
+    """Base pricing rules per vehicle type per city.
+    company_id = NULL: Platform pricing (admin-managed, for independent drivers)
+    company_id = NOT NULL: Company pricing (company-managed, for company drivers)
+    """
     __tablename__ = "pricing_profiles"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Company (NULL = platform pricing, NOT NULL = company pricing)
+    company_id = Column(UUID(as_uuid=True), nullable=True, index=True)  # Links to company-service
     
     # Location
     city_code = Column(String(10), nullable=False, index=True)  # e.g., "MUM", "DEL", "BLR"
@@ -48,10 +54,16 @@ class PricingProfile(Base):
 
 
 class PeakHours(Base):
-    """Peak hours definition per city with multiplier."""
+    """Peak hours definition per city with multiplier.
+    company_id = NULL: Platform peak hours (admin-managed)
+    company_id = NOT NULL: Company peak hours (company-managed)
+    """
     __tablename__ = "peak_hours"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Company (NULL = platform, NOT NULL = company)
+    company_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     
     # Location
     city_code = Column(String(10), nullable=False, index=True)
@@ -73,13 +85,24 @@ class PeakHours(Base):
 
 
 class SurgeConfig(Base):
-    """Surge calculation parameters per vehicle type."""
+    """Surge calculation parameters per vehicle type.
+    company_id = NULL: Platform surge config (admin-managed)
+    company_id = NOT NULL: Company surge config (company-managed)
+    """
     __tablename__ = "surge_configs"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
-    # Vehicle type
-    vehicle_type = Column(SQLEnum(VehicleType), nullable=False, unique=True, index=True)
+    # Company (NULL = platform, NOT NULL = company)
+    company_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    
+    # Vehicle type (unique per company_id + vehicle_type combination)
+    vehicle_type = Column(SQLEnum(VehicleType), nullable=False, index=True)
+    
+    # Unique constraint: one surge config per (company_id, vehicle_type)
+    __table_args__ = (
+        UniqueConstraint('company_id', 'vehicle_type', name='uq_surge_config_company_vehicle'),
+    )
     
     # Surge parameters
     base_demand_threshold = Column(Float, nullable=False, default=1.5)  # Demand/supply ratio to start surge
@@ -95,10 +118,16 @@ class SurgeConfig(Base):
 
 
 class RegulatoryCap(Base):
-    """Maximum fare caps per city/state (regulatory compliance)."""
+    """Maximum fare caps per city/state (regulatory compliance).
+    company_id = NULL: Platform regulatory caps (admin-managed)
+    company_id = NOT NULL: Company regulatory caps (company-managed)
+    """
     __tablename__ = "regulatory_caps"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Company (NULL = platform, NOT NULL = company)
+    company_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     
     # Location
     city_code = Column(String(10), nullable=True, index=True)  # NULL = applies to all cities
@@ -131,6 +160,8 @@ class PricingCalculation(Base):
     # Request info
     request_id = Column(String(100), nullable=True, index=True)  # Ride request ID
     user_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    driver_id = Column(UUID(as_uuid=True), nullable=True, index=True)  # Driver ID
+    company_id = Column(UUID(as_uuid=True), nullable=True, index=True)  # Company ID (NULL = independent)
     
     # Location
     city_code = Column(String(10), nullable=True, index=True)

@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     DEFAULT_MAX_SURGE: float = 3.0  # Maximum surge multiplier
     DEFAULT_SURGE_INCREMENT: float = 0.2  # Surge increment per demand unit
     
+    # Service URLs
+    DRIVER_SERVICE_URL: str = "http://driver-service:8002/api/v1"
+    COMPANY_SERVICE_URL: str = "http://company-service:8000/api/v1"
+    
+    # Internal API key for service-to-service calls (e.g. realtime-service -> pricing)
+    INTERNAL_API_KEY: str = ""
+    
     class Config:
         env_file = ".env"
 

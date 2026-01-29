@@ -53,3 +53,20 @@ class BulkNotificationRequest(BaseModel):
     channels: list[NotificationChannel] = [NotificationChannel.IN_APP]
     data: Optional[Dict[str, Any]] = None
     priority: str = "normal"
+
+class PushNotificationRequest(BaseModel):
+    """Request to send a direct push notification via Firebase."""
+    device_token: str  # FCM device token
+    title: str
+    body: str
+    data: Optional[Dict[str, Any]] = None
+    priority: str = "high"  # high, normal
+
+
+class TopicNotificationRequest(BaseModel):
+    """Request to send a notification to topic subscribers."""
+    topic: str  # Topic name (e.g., "drivers", "passengers")
+    title: str
+    body: str
+    data: Optional[Dict[str, Any]] = None
+    priority: str = "high"

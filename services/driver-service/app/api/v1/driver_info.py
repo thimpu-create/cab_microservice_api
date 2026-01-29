@@ -36,6 +36,7 @@ async def get_driver_info(
     return {
         "driver_id": str(driver.id),
         "user_id": str(driver.user_id),
+        "company_id": str(driver.company_id) if driver.company_id else None,  # Added for pricing service
         "vehicle_type": driver.vehicle_type.value if driver.vehicle_type else None,
         "average_rating": average_rating,
         "total_ratings": total_ratings,
@@ -91,6 +92,7 @@ async def get_drivers_batch_info(
             result.append({
                 "driver_id": driver_id_str,
                 "user_id": str(driver.user_id),
+                "company_id": str(driver.company_id) if driver.company_id else None,  # Added for pricing service
                 "vehicle_type": driver.vehicle_type.value if driver.vehicle_type else None,
                 "average_rating": rating_info["average_rating"],
                 "total_ratings": rating_info["total_ratings"],

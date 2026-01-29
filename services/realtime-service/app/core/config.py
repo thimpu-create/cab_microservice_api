@@ -15,7 +15,10 @@ class Settings(BaseSettings):
     DRIVER_SERVICE_URL: str = "http://driver-service:8002/api/v1"
     PASSENGER_SERVICE_URL: str = "http://passenger-service:8003/api/v1"
     NOTIFICATION_SERVICE_URL: str = "http://notification-service:8011/api/v1"  # Port 8011 from docker-compose
-    
+    PRICING_SERVICE_URL: str = "http://pricing-service:8000"
+    RIDE_SERVICE_URL: str = "http://ride-service:8000"
+    INTERNAL_API_KEY: str = ""  # Same as ride-service / pricing-service for internal APIs
+
     # Matching algorithm weights (configurable)
     MATCHING_DISTANCE_WEIGHT: float = 0.4  # Weight for distance in scoring
     MATCHING_RATING_WEIGHT: float = 0.3  # Weight for driver rating

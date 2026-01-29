@@ -6,6 +6,7 @@ from app.core.redis_client import redis_conn, decode_dict, decode_val
 from app.core.websocket_manager import ws_manager
 from app.core.security import authenticate_websocket, verify_role
 from app.core.ride_manager import ride_manager, RideStatus
+from app.core.ride_service_client import update_ride_status as ride_service_update_status
 from app.core.utils import calculate_eta_to_pickup, calculate_eta_to_dropoff
 from app.core.notification_client import notification_client
 
@@ -120,10 +121,9 @@ async def driver_websocket(websocket: WebSocket, driver_id: str):
                 if new_status == "in_progress":
                     success = await ride_manager.update_ride_status(request_id, RideStatus.IN_PROGRESS)
                     if success:
-                        # Update local ride status
                         redis_conn.hset(f"ride:driver:{driver_id}", "status", RideStatus.IN_PROGRESS)
                         redis_conn.hset(f"ride_request:{request_id}", "status", RideStatus.IN_PROGRESS)
-                        
+                        await ride_service_update_status(request_id, "in_progress", driver_id=driver_id)
                         # Notify passenger
                         ride_data = redis_conn.hgetall(f"ride_request:{request_id}")
                         if ride_data:
@@ -442,6 +442,9 @@ async def handle_driver_accept(driver_id: str, request_id: str):
         driver_msg["dropoff_lon"] = float(dropoff_lon)
     
     await ws_manager.send_to_driver(driver_id, driver_msg)
+
+    # Persist assign in ride-service
+    await ride_service_update_status(request_id, "assigned", driver_id=driver_id)
     
     # Notify other drivers that ride is taken
     await ws_manager.broadcast_to_drivers(
@@ -450,11 +453,14 @@ async def handle_driver_accept(driver_id: str, request_id: str):
     )
 
 
+def _duration_minutes(started_at, completed_at):
+    if not started_at or not completed_at:
+        return None
+    return int((float(completed_at) - float(started_at)) / 60)
+
+
 async def handle_ride_completion(driver_id: str, request_id: str):
     """Handle ride completion."""
-    from app.db.session import SessionLocal
-    from app.core.ride_persistence import save_ride_to_db, calculate_ride_duration
-    
     ride_key = f"ride_request:{request_id}"
     ride_data = redis_conn.hgetall(ride_key)
     
@@ -465,9 +471,7 @@ async def handle_ride_completion(driver_id: str, request_id: str):
         })
         return
     
-    # Update status to completed
     success = await ride_manager.update_ride_status(request_id, RideStatus.COMPLETED)
-    
     if not success:
         await ws_manager.send_to_driver(driver_id, {
             "type": "error",
@@ -477,40 +481,22 @@ async def handle_ride_completion(driver_id: str, request_id: str):
     
     ride = decode_dict(ride_data)
     passenger_id = ride.get("passenger_id")
-    
-    # Calculate duration
     started_at = ride.get("started_at")
     completed_at = time.time()
-    duration_minutes = calculate_ride_duration(started_at, completed_at)
-    
-    # Save to database
+    duration_minutes = _duration_minutes(started_at, completed_at)
     try:
-        db = SessionLocal()
-        try:
-            save_ride_to_db(
-                db=db,
-                request_id=request_id,
-                passenger_id=passenger_id,
-                driver_id=driver_id,
-                pickup_lat=float(ride.get("pickup_lat")),
-                pickup_lon=float(ride.get("pickup_lon")),
-                dropoff_lat=float(ride.get("dropoff_lat")) if ride.get("dropoff_lat") else None,
-                dropoff_lon=float(ride.get("dropoff_lon")) if ride.get("dropoff_lon") else None,
-                pickup_address=ride.get("pickup_address"),
-                dropoff_address=ride.get("dropoff_address"),
-                status=RideStatus.COMPLETED,
-                created_at=ride.get("created_at"),
-                assigned_at=ride.get("assigned_at"),
-                started_at=started_at,
-                completed_at=completed_at,
-                duration_minutes=duration_minutes,
-            )
-            print(f"💾 Saved ride {request_id} to database")
-        finally:
-            db.close()
-    except Exception as e:
-        print(f"⚠️ Failed to save ride to database: {e}")
-        # Continue even if DB save fails
+        ef = float(ride.get("estimated_fare"))
+    except (TypeError, ValueError):
+        ef = None
+    fare_amount = ef if (ef is not None and ef > 0) else None
+
+    await ride_service_update_status(
+        request_id,
+        "completed",
+        driver_id=driver_id,
+        duration_minutes=duration_minutes,
+        fare_amount=fare_amount,
+    )
     
     # Notify passenger
     if passenger_id:

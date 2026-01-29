@@ -37,8 +37,11 @@ async def calculate_fare(
             dropoff_lon=request.dropoff_lon,
             vehicle_type=request.vehicle_type,
             city_code=request.city_code,
+            driver_id=request.driver_id,
+            company_id=request.company_id,
             estimated_distance_km=request.estimated_distance_km,
             estimated_duration_minutes=request.estimated_duration_minutes,
+            request_id=None,  # Can be passed from ride request
             user_id=str(user_id) if user_id else None
         )
         return result
