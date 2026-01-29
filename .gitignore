@@ -30,7 +30,8 @@ gunicorn.conf.py
 .env.*
 !.env.example
 
-services\notification-service\firebase-key.json
+services/notification-service/firebase-key.json
+
 
 # ===============================
 # Docker
