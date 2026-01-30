@@ -7,12 +7,11 @@ from typing import List, Dict, Any
 from uuid import UUID
 import logging
 
-from app.db.database import get_db
+from app.db.session import get_db
 from app.db.crud import DeviceCRUD, NotificationLogCRUD
 from app.schemas.device import (
     DeviceRegisterRequest,
     DeviceResponse,
-    DeviceListResponse,
     UserDevicesResponse
 )
 
