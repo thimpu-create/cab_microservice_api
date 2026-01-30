@@ -12,7 +12,6 @@ from app.db.crud import DeviceCRUD, NotificationLogCRUD
 from app.schemas.device import (
     DeviceRegisterRequest,
     DeviceResponse,
-    DeviceListResponse,
     UserDevicesResponse
 )
 
